@@ -1,0 +1,5 @@
+link in cui spiegano come si usa il termometro: https://lastminuteengineers.com/sht31-temperature-humidity-sensor-arduino-tutorial/
+
+
+
+power saving     http://gammon.com.au/power
