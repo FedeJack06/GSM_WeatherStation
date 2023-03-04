@@ -7,6 +7,7 @@
 
 #define seaLevelPressure_hPa 1013.25
 
+
 unsigned char temp = A0;
 unsigned int anem = 3;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
@@ -24,6 +25,8 @@ RTC_DS1307 rtc;
 Adafruit_BMP085 bmp;
 
 
+//FUNZIONI ___________________________________________________________________________
+
 void anemometer(){
   n++;
   if(control){
@@ -31,6 +34,7 @@ void anemometer(){
     control = false;
   }
 }
+
 
 void setup(){
   Serial.begin(9600);
@@ -135,10 +139,19 @@ void loop(){
   Serial.print("\t");
 
 //BAROMETRO *********************************************************
+  float pressure = bmp.readPressure();
 
-  Serial.print("Pressione: ");
-  Serial.print(bmp.readPressure());
-  Serial.print("\t");
+  if(!isnan(pressure))
+  {
+    Serial.print("Pressione: ");
+    Serial.print(pressure);
+    Serial.print("\t");
+  }
+  else
+  {
+    Serial.Print("Unable to read pressure");
+  }  
+  
 
 
 
