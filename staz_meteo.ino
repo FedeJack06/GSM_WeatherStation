@@ -1,3 +1,9 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include "RTClib.h"
+#include "Adafruit_SHT31.h"
+#include "Adafruit_BMP085.h"
+
 
 #define seaLevelPressure_hPa 1013.25
 
@@ -8,9 +14,14 @@ unsigned int n = 0;
 unsigned int count10 = 0;
 unsigned int count = 0;
 bool control = true;
-unsigned long t1 = 0;
-unsigned long t2 = 0;
-unsigned long vel = 0;
+float t1 = 0;
+float t2 = 0;
+float vel = 0;
+
+
+Adafruit_SHT31 sht31 = Adafruit_SHT31();
+RTC_DS1307 rtc;
+Adafruit_BMP085 bmp;
 
 
 void anemometer(){
@@ -25,14 +36,12 @@ void setup(){
   Serial.begin(9600);
 
   //TERMOMETRO ****************************************************************
-  Adafruit_SHT31 sht31 = Adafruit_SHT31();
   if (! sht31.begin(0x44)) {   // Set to 0x45 for alternate I2C address
     Serial.println("Couldn't find SHT31");
     while (1) delay(1);
   }
 
   //RTC ***********************************************************************
-  RTC_DS1307 rtc;
   if (! rtc.begin()) { //la rtc ha range di lavoro 0-70 gradi, quindi nel casi si andasse sotto zero pesantemnte (inverno) come si fa?
     Serial.println("Couldn't find RTC");
     while (1);
@@ -50,7 +59,6 @@ void setup(){
   attachInterrupt(digitalPinToInterrupt(anem),anemometer,HIGH);
 
   //BAROMETRO *********************************************************
-  Adafruit_BMP085 bmp;
   if (!bmp.begin()) 
   {
 	  Serial.println("Could not find a valid BMP085 sensor, check wiring!");
