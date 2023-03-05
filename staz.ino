@@ -18,6 +18,7 @@ bool control = true;
 float t1 = 0;
 float t2 = 0;
 float vel = 0;
+float tAverage0 = millis();
 
 // CONTROLLI PER SENSORI
 bool term_control = true;
@@ -155,7 +156,6 @@ void setup()
 void loop()
 {
 
-    float tAverage0 = millis();
     float tempAverage = 0;
     float humAverage = 0;
     float pressAverage = 0;
@@ -250,7 +250,6 @@ void loop()
         humAverage = humAverage / humCount;
         pressAverage = pressAverage / pressCount;
         data_ora();
-
         tAverage0 = millis();
     }
     

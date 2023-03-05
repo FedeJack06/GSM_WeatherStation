@@ -16,6 +16,7 @@ bool control = true;
 float t1 = 0;
 float t2 = 0;
 float vel = 0;
+unsigned long tAverage0 = millis();
 
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 RTC_DS1307 rtc;
@@ -38,12 +39,37 @@ void anemometer()
   }
 }
 
+
+// DATA E ORA ****************************************************************
+void data_ora(){
+    if (rtc_control)
+    {
+        DateTime now = rtc.now();
+
+        Serial.print(now.day(), DEC);
+        Serial.print('/');
+        Serial.print(now.month(), DEC);
+        Serial.print('/');
+        Serial.print(now.year(), DEC);
+        Serial.print(" (");
+        Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+        Serial.print(") ");
+        Serial.print(now.hour(), DEC);
+        Serial.print(':');
+        Serial.print(now.minute(), DEC);
+        Serial.print(':');
+        Serial.print(now.second(), DEC);
+        Serial.print("\t");
+    }
+}
+
+
 void setup()
 {
   Serial.begin(9600);
 
   // TERMOMETRO ****************************************************************
-  if (!sht31.begin(0x45))
+  if (!sht31.begin(0x44))
   { 
     Serial.println("Couldn't find SHT31");
     term_control = false;
@@ -80,7 +106,6 @@ void setup()
 void loop()
 {
 
-  float tAverage0 = millis();
   float tempAverage = 0;
   float humAverage = 0;
   float pressAverage = 0;
@@ -89,28 +114,7 @@ void loop()
   int humCount = 0;
   int pressCount = 0;
 
-  // DATA E ORA ****************************************************************
-/*
-  if (rtc_control)
-  {
-    DateTime now = rtc.now();
 
-    Serial.print(now.day(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.year(), DEC);
-    Serial.print(" (");
-    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    Serial.print(") ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.print("\t");
-  }
-*/
   // TEMPERATURA E UMIDITA ***********************************************************
   if (term_control)
   {
@@ -119,12 +123,12 @@ void loop()
 
     if (!isnan(t))
     { // check if 'is not a number'
-      tempAverage += t;
+      tempAverage = t + tempAverage;
       tempCount++;
-
       Serial.print("Temp *C = ");
       Serial.print(t);
-      Serial.print("\t");
+      Serial.print("\n");
+      
     }
     else
     {
@@ -136,10 +140,11 @@ void loop()
     { // check if 'is not a number'
       humAverage += h;
       humCount++;
-
+      /*
       Serial.print("Hum. % = ");
       Serial.println(h);
       Serial.print("\n");
+      */
     }
     else
     {
@@ -186,15 +191,22 @@ void loop()
     }
   }
 
-  if (millis() - tAverage0 > 120000)
+  if ((millis() - tAverage0) >= 10000)
   {
     Serial.println("_________________________________________________________");
-    Serial.print(tempAverage = tempAverage / tempCount);
-    Serial.print("/t");
-    Serial.print(humAverage = humAverage / humCount);
-    Serial.print("/t");
-    Serial.println(pressAverage = pressAverage / pressCount);
+    data_ora();
+    Serial.print("\t");
+    Serial.print(tempAverage,6);
+    Serial.print("\t");
+    Serial.print(tempCount,6);
+    Serial.print("\t");
+    Serial.print((tempAverage / tempCount),6);
+    Serial.print("\t");
+    //Serial.print((humAverage / humCount), 6);
+    Serial.print("\t");
+    //Serial.println((pressAverage / pressCount),6);
+    tAverage0 = millis();
   }
 
-  delay(1000);
+  delay(500);
 }
