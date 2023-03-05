@@ -43,8 +43,8 @@ void setup()
   Serial.begin(9600);
 
   // TERMOMETRO ****************************************************************
-  if (!sht31.begin(0x44))
-  { // Set to 0x45 for alternate I2C address
+  if (!sht31.begin(0x45))
+  { 
     Serial.println("Couldn't find SHT31");
     term_control = false;
   }
@@ -90,7 +90,7 @@ void loop()
   int pressCount = 0;
 
   // DATA E ORA ****************************************************************
-
+/*
   if (rtc_control)
   {
     DateTime now = rtc.now();
@@ -110,7 +110,7 @@ void loop()
     Serial.print(now.second(), DEC);
     Serial.print("\t");
   }
-
+*/
   // TEMPERATURA E UMIDITA ***********************************************************
   if (term_control)
   {
@@ -139,7 +139,7 @@ void loop()
 
       Serial.print("Hum. % = ");
       Serial.println(h);
-      Serial.print("\t");
+      Serial.print("\n");
     }
     else
     {
@@ -149,7 +149,7 @@ void loop()
   }
 
   // ANEMOMETRO *******************************************************************
-
+/*
   // a 2.4 km/h lo switch si chiude 1 volta al secondo
   t2 = millis() / 1000;
 
@@ -160,13 +160,13 @@ void loop()
     control = true;
   }
 
-  count = count10 / (t2 - t1) // numero di volte in cui si chiude lo switch in un secondo
-          vel = 2.4 * count;
+  count = count10 / (t2 - t1); // numero di volte in cui si chiude lo switch in un secondo
+  vel = 2.4 * count;
 
   Serial.print("Velocita: ");
   Serial.print(vel);
   Serial.print("\t");
-
+*/
   // BAROMETRO *********************************************************
   if (bar_control)
   {
@@ -182,18 +182,18 @@ void loop()
     }
     else
     {
-      Serial.Print("Unable to read pressure");
+      Serial.print("Unable to read pressure");
     }
   }
 
-  if (millis() - tAverage0 > 600000)
+  if (millis() - tAverage0 > 120000)
   {
     Serial.println("_________________________________________________________");
-    Serial.print(tempAverage = tempAverage / tempCount;);
+    Serial.print(tempAverage = tempAverage / tempCount);
     Serial.print("/t");
-    Serial.print(humAverage = humAverage / humCount;);
+    Serial.print(humAverage = humAverage / humCount);
     Serial.print("/t");
-    Serial.println(pressAverage = pressAverage / pressCount;);
+    Serial.println(pressAverage = pressAverage / pressCount);
   }
 
   delay(1000);
