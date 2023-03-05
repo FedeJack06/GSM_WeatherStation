@@ -94,7 +94,7 @@ void setup()
     mySerial.begin(9600);
     delay(100);
 
-    // GSM
+    // GSM questi controlli sono tutti sbagliato, non capisco che cazzo ritorna il gsm
     mySerial.println("AT"); // Once the handshake test is successful, it will back to OK
     if (mySerial.read() != "OK")
     {
