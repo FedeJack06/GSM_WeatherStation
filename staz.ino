@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <Wire.h>
 #include "RTClib.h"
 #include "Adafruit_SHT31.h"
@@ -19,9 +18,8 @@ bool rtc_control = true;
 //BAROMETRO
 Adafruit_BMP085 bmp;
 
-#define seaLevelPressure_hPa 1013.25
+#define seaLevelPressure_hPa 1013.25  //NB DA TARARE CON MISURAZIONI DI ALTRE STAZIONI VICINE NORMALIZZATE SLM
 bool bar_control = true;
-
 
 // VELOCITA VENTO: presuppone anemometro con contatto reed cioe ogni giro un contato, con un interrupt 
 conto ogni contatto sapendo che un contatto al secondo sono due virgola quattro metri al secondo 
@@ -34,22 +32,22 @@ unsigned int count = 0; //numero di conteggi al secondo
 bool control = true; //fa le cose sono quando questa variabile è vera
 unsigned int anem = 3; //pin su cui abbiamo l interrupt 
 
-
 // TERMOMETRO & IGROMETRO
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 bool term_control = true;
-
-
-//MEDIE 
-float tAverage0 = millis();
 float tempAverage = 0;
 float humAverage = 0;
-float pressAverage = 0;
-int tempCount = 0;  //  MEGLIO USARE UN LONG?
+int tempCount = 0; 
 int humCount = 0;
+
+//PRESSIONE
+float pressAverage = 0;
 int pressCount = 0;
 
-// FUNZIONI ___________________________________________________________________________
+//TEMPORIZZAZIONI 
+float tAverage0 = millis();
+
+// INTERRUPT ____________________________________________________________________________________________
 void anemometer()
 {
     n++;
@@ -60,56 +58,12 @@ void anemometer()
     }
 }
 
-void updateSerial()
+void contaGocce()
 {
-    delay(500);
-    while (Serial.available()) // CREDO CHE QUESTO NON SERVA A NIENTE
-    {
-        mySerial.write(Serial.read()); // Forward what Serial received to Software Serial Port
-    }
-    while (mySerial.available())
-    {
-        Serial.write(mySerial.read()); // Forward what Software Serial received to Serial Port
-    }
+    //mmPioggia += mmGocciaSingola;
 }
 
-void send_mess(const char s)
-{
-    mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
-    updateSerial();
-    mySerial.println("AT+CMGS=\"+393890954340\""); // change ZZ with country code and xxxxxxxxxxx with phone number to sms
-    updateSerial();
-    mySerial.print(s); // text content
-    updateSerial();
-    mySerial.write(26); //è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
-}
-
-/////////////////////////////////////////FUNZIONE FUSO ORARIO//////////////////////////////////
-byte dstOffset (byte d, byte m, unsigned int y, byte h) {
-  /* This function returns the DST offset for the current UTC time.
-    This is valid for the EU, for other places see
-    http://www.webexhibits.org/daylightsaving/i.html
-    Results have been checked for 2012-2030 (but should work since
-    1996 to 2099) against the following references:
-    - http://www.uniquevisitor.it/magazine/ora-legale-italia.php
-    - http://www.calendario-365.it/ora-legale-orario-invernale.html
-  */
-
-  // Day in March that DST starts on, at 1 am
-  byte dstOn = (31 - (5 * y / 4 + 4) % 7);
-
-  // Day in October that DST ends  on, at 2 am
-  byte dstOff = (31 - (5 * y / 4 + 1) % 7);
-
-  if ((m > 3 && m < 10) ||
-      (m == 3 && (d > dstOn || (d == dstOn && h >= 1))) ||
-      (m == 10 && (d < dstOff || (d == dstOff && h <= 1))))
-    return 1;
-  else
-    return 0;
-}
-
-// DATA E ORA ****************************************************************
+// DATA E ORA _____________________________________________________________________________________________
 void data_ora(){
     if (rtc_control)
     {
@@ -132,14 +86,53 @@ void data_ora(){
     }
 }
 
+// INIZIALIZZAZIONI _____________________________________________________________________________________________________________
 
-void setup()
+void initRTC()
 {
-    Serial.begin(9600);
-    mySerial.begin(9600);
-    delay(50);
+    /*
+    if (!rtc.begin()) { //la rtc ha range di lavoro 0-70 gradi, quindi nel casi si andasse sotto zero pesantemnte (inverno) come si fa?
+      send_mess("Couldn't find RTC");
+    }
+    */
+    if (!rtc.isrunning())
+    {
+        send_mess("RTC is NOT running!");
+        // following line sets the RTC to the date & time this sketch was compiled
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        // This line sets the RTC with an explicit date & time, for example to set
+        // January 21, 2014 at 3am you would call:
+        // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+        rtc_control = false;
+    }
+}
 
-    // GSM questi controlli sono tutti sbagliato, non capisco che cazzo ritorna il gsm
+void initTemp()
+{
+	if (!sht31.begin(0x44))
+	{ // Set to 0x45 for alternate I2C address
+		send_mess("il termometro non va puttana eva");
+		term_control = false;
+	}
+}
+
+void initBarometro()
+{
+	if (!bmp.begin())
+    {
+        send_mess("Could not find a valid BMP085 sensor, check wiring!");
+        bar_control = false;
+    }
+}
+
+void initWindSpeed()
+{
+	attachInterrupt(digitalPinToInterrupt(anem), anemometer, HIGH);
+}
+
+void initGSM()
+{
+	// GSM questi controlli sono tutti sbagliato, non capisco che cazzo ritorna il gsm
     mySerial.println("AT"); // Once the handshake test is successful, it will back to OK
     if (mySerial.read() != "OK")
     {
@@ -161,49 +154,13 @@ void setup()
     {
         Serial.print("puttana eva a che cazzo è collegato");
     }
-
-    // TERMOMETRO ****************************************************************
-    if (!sht31.begin(0x44))
-    { // Set to 0x45 for alternate I2C address
-        send_mess("il termometro non va puttana eva");
-        term_control = false;
-    }
-
-    // RTC ***********************************************************************
-    /*
-    if (!rtc.begin()) { //la rtc ha range di lavoro 0-70 gradi, quindi nel casi si andasse sotto zero pesantemnte (inverno) come si fa?
-      send_mess("Couldn't find RTC");
-    }
-    */
-    if (!rtc.isrunning())
-    {
-        send_mess("RTC is NOT running!");
-        // following line sets the RTC to the date & time this sketch was compiled
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-        // This line sets the RTC with an explicit date & time, for example to set
-        // January 21, 2014 at 3am you would call:
-        // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-        rtc_control = false;
-    }
-
-    // ANEMOMETRO *******************************************************************
-    attachInterrupt(digitalPinToInterrupt(anem), anemometer, HIGH);
-
-    // BAROMETRO *********************************************************
-    if (!bmp.begin())
-    {
-        send_mess("Could not find a valid BMP085 sensor, check wiring!");
-        bar_control = false;
-    }
 }
 
-void loop()
+//FUNZIONI IN LOOP__________________________________________________________________________________________________________________
+void readTempHum()
 {
-
-    // TEMPERATURA E UMIDITA ***********************************************************
-    if (term_control)
+	if (term_control)
     {
-
         float t = sht31.readTemperature();
         float h = sht31.readHumidity();
 
@@ -240,27 +197,11 @@ void loop()
         }
     }
 
-    // ANEMOMETRO *******************************************************************
+}
 
-    // a 2.4 km/h lo switch si chiude 1 volta al secondo
-    t2 = millis() / 1000;
-
-    if ((t2 - t1) >= 10)
-    {
-        count10 = n;
-        n = 0;
-        control = true;
-    }
-
-    count = count10 / (t2 - t1) // numero di volte in cui si chiude lo switch in un secondo
-    vel = 2.4 * count;
-
-    Serial.print("Velocita: ");
-    Serial.print(vel);
-    Serial.print("\t");
-
-    // BAROMETRO *********************************************************
-    if (bar_control)
+void readPressure()
+{
+	if (bar_control)
     {
         float pressure = bmp.readPressure();
         if (!isnan(pressure))
@@ -277,30 +218,108 @@ void loop()
             Serial.Print("Unable to read pressure");
         }
     }
+}
 
-  if ((millis() - tAverage0) >= 1000) {
-    Serial.println("_________________________________________________________");
-    data_ora();
+void readWindSpeed()
+{
+	// a 2.4 km/h lo switch si chiude 1 volta al secondo
+    t2 = millis() / 1000;
+
+    if ((t2 - t1) >= 10)
+    {
+        count10 = n;
+        n = 0;
+        control = true;
+    }
+
+    count = count10 / (t2 - t1) // numero di volte in cui si chiude lo switch in un secondo
+    vel = 2.4 * count;
+
+    Serial.print("Velocita: ");
+    Serial.print(vel);
     Serial.print("\t");
-    Serial.print(tempAverage, 6);
-    Serial.print("\t");
-    Serial.print(tempCount, 6);
-    Serial.print("\t");
-    Serial.print((tempAverage / tempCount), 6);
-    Serial.print("\t");
-    //Serial.print((humAverage / humCount), 6);
-    //Serial.print("\t");
-    //Serial.println((pressAverage / pressCount),6);
-    tempAverage = 0;
-    humAverage = 0;
-    pressAverage = 0;
-    tempCount = 0;
-    humCount = 0;
-    pressCount = 0;
+}
+
+void readWindDir()
+{
+
+}
+
+void readPioggia()
+{
+
+}
+
+void updateSerial()
+{
+    delay(500);
+    while (Serial.available()) // CREDO CHE QUESTO NON SERVA A NIENTE
+    {
+        mySerial.write(Serial.read()); // Forward what Serial received to Software Serial Port
+    }
+    while (mySerial.available())
+    {
+        Serial.write(mySerial.read()); // Forward what Software Serial received to Serial Port
+    }
+}
+
+void send_mess(const char s)
+{
+    mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
+    updateSerial();
+    mySerial.println("AT+CMGS=\"+393890954340\""); // change ZZ with country code and xxxxxxxxxxx with phone number to sms
+    updateSerial();
+    mySerial.print(s); // text content
+    updateSerial();
+    mySerial.write(26); //è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
+}
+
+void resetAverage()
+{
+	tempAverage = 0;
+	humAverage = 0;
+	pressAverage = 0;
+	tempCount = 0;
+	humCount = 0;
+	pressCount = 0;
+}
+
+//__________________________________________________________________________________________________________________________________
+void setup()
+{
+    Serial.begin(9600);
+    mySerial.begin(9600);
+
+	//initRTC; //scommentare solo per impostare l'ora.
+    initTemp();
+	initBarometro();
+	initWindSpeed();
+	initGSM();
+}
+
+void loop()
+{
+	readTempHum;
+	readPressure;
+	readWindSpeed;
+
+	if ((millis() - tAverage0) >= 1000) 
+	{
+		tAverage0 = millis();
+		Serial.println("_________________________________________________________");
+		data_ora();
+		Serial.print("\t");
+		Serial.print(tempAverage, 6);
+		Serial.print("\t");
+		Serial.print(tempCount, 6);
+		Serial.print("\t");
+		Serial.print((tempAverage / tempCount), 6);
+		Serial.print("\t");
+		//Serial.print((humAverage / humCount), 6);
+		//Serial.print("\t");
+		//Serial.println((pressAverage / pressCount),6);
+		resetAverage;
+	}
+
     delay(1000);
-    tAverage0 = millis();
-  }
-
-
-    delay(200);
 }
