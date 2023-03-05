@@ -5,29 +5,49 @@
 #include "Adafruit_BMP085.h"
 #include <SoftwareSerial.h>
 
-#define seaLevelPressure_hPa 1013.25
+
+// GSM
 SoftwareSerial mySerial(3, 2);
 
-unsigned char temp = A0;
-unsigned int anem = 3;
+// RTC
+RTC_DS1307 rtc;
+
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-unsigned int n = 0;
-unsigned int count10 = 0;
-unsigned int count = 0;
-bool control = true;
+bool rtc_control = true;
+
+
+//BAROMETRO
+Adafruit_BMP085 bmp;
+
+#define seaLevelPressure_hPa 1013.25
+bool bar_control = true;
+
+
+// VELOCITA VENTO: presuppone anemometro con contatto reed cioe ogni giro un contato, con un interrupt 
+conto ogni contatto sapendo che un contatto al secondo sono due virgola quattro metri al secondo 
 float t1 = 0;
 float t2 = 0;
 float vel = 0;
-float tAverage0 = millis();
+unsigned int n = 0; // numero di conteggi, variabile incrementale 
+unsigned int count10 = 0; //numero di conteggi in 10 secondi 
+unsigned int count = 0; //numero di conteggi al secondo 
+bool control = true; //fa le cose sono quando questa variabile è vera
+unsigned int anem = 3; //pin su cui abbiamo l interrupt 
 
-// CONTROLLI PER SENSORI
-bool term_control = true;
-bool rtc_control = true;
-bool bar_control = true;
 
+// TERMOMETRO & IGROMETRO
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
-RTC_DS1307 rtc;
-Adafruit_BMP085 bmp;
+bool term_control = true;
+
+
+//MEDIE 
+float tAverage0 = millis();
+float tempAverage = 0;
+float humAverage = 0;
+float pressAverage = 0;
+int tempCount = 0;  //  MEGLIO USARE UN LONG?
+int humCount = 0;
+int pressCount = 0;
 
 // FUNZIONI ___________________________________________________________________________
 void anemometer()
@@ -64,6 +84,30 @@ void send_mess(const char s)
     mySerial.write(26); //è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
 }
 
+/////////////////////////////////////////FUNZIONE FUSO ORARIO//////////////////////////////////
+byte dstOffset (byte d, byte m, unsigned int y, byte h) {
+  /* This function returns the DST offset for the current UTC time.
+    This is valid for the EU, for other places see
+    http://www.webexhibits.org/daylightsaving/i.html
+    Results have been checked for 2012-2030 (but should work since
+    1996 to 2099) against the following references:
+    - http://www.uniquevisitor.it/magazine/ora-legale-italia.php
+    - http://www.calendario-365.it/ora-legale-orario-invernale.html
+  */
+
+  // Day in March that DST starts on, at 1 am
+  byte dstOn = (31 - (5 * y / 4 + 4) % 7);
+
+  // Day in October that DST ends  on, at 2 am
+  byte dstOff = (31 - (5 * y / 4 + 1) % 7);
+
+  if ((m > 3 && m < 10) ||
+      (m == 3 && (d > dstOn || (d == dstOn && h >= 1))) ||
+      (m == 10 && (d < dstOff || (d == dstOff && h <= 1))))
+    return 1;
+  else
+    return 0;
+}
 
 // DATA E ORA ****************************************************************
 void data_ora(){
@@ -93,7 +137,7 @@ void setup()
 {
     Serial.begin(9600);
     mySerial.begin(9600);
-    delay(100);
+    delay(50);
 
     // GSM questi controlli sono tutti sbagliato, non capisco che cazzo ritorna il gsm
     mySerial.println("AT"); // Once the handshake test is successful, it will back to OK
@@ -155,15 +199,6 @@ void setup()
 
 void loop()
 {
-
-    float tempAverage = 0;
-    float humAverage = 0;
-    float pressAverage = 0;
-
-    int tempCount = 0;      //  MEGLIO USARE UN LONG?
-    int humCount = 0;
-    int pressCount = 0;
-
 
     // TEMPERATURA E UMIDITA ***********************************************************
     if (term_control)
@@ -243,16 +278,29 @@ void loop()
         }
     }
 
-    if((millis() - tAverage0) > 600000) //600000 sono 10 minuti
-    {
-        //MANDA I DATI
-        tempAverage = tempAverage / tempCount;
-        humAverage = humAverage / humCount;
-        pressAverage = pressAverage / pressCount;
-        data_ora();
-        tAverage0 = millis();
-    }
-    
+  if ((millis() - tAverage0) >= 1000) {
+    Serial.println("_________________________________________________________");
+    data_ora();
+    Serial.print("\t");
+    Serial.print(tempAverage, 6);
+    Serial.print("\t");
+    Serial.print(tempCount, 6);
+    Serial.print("\t");
+    Serial.print((tempAverage / tempCount), 6);
+    Serial.print("\t");
+    //Serial.print((humAverage / humCount), 6);
+    //Serial.print("\t");
+    //Serial.println((pressAverage / pressCount),6);
+    tempAverage = 0;
+    humAverage = 0;
+    pressAverage = 0;
+    tempCount = 0;
+    humCount = 0;
+    pressCount = 0;
+    delay(1000);
+    tAverage0 = millis();
+  }
+
 
     delay(200);
 }
