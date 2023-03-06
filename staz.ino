@@ -14,7 +14,6 @@ RTC_DS1307 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 bool rtc_control = true;
 
-
 //BAROMETRO
 Adafruit_BMP085 bmp;
 
@@ -23,34 +22,34 @@ bool bar_control = true;
 
 // VELOCITA VENTO: presuppone anemometro con contatto reed cioe ogni giro un contato, con un interrupt 
 conto ogni contatto sapendo che un contatto al secondo sono due virgola quattro metri al secondo 
-float t1 = 0;
-float t2 = 0;
+unsigned long t1 = 0;
+unsigned long t2 = 0;
 float vel = 0;
-unsigned int n = 0; // numero di conteggi, variabile incrementale 
+unsigned int nPulseWind = 0; // numero di conteggi, variabile incrementale 
 unsigned int count10 = 0; //numero di conteggi in 10 secondi 
 unsigned int count = 0; //numero di conteggi al secondo 
 bool control = true; //fa le cose sono quando questa variabile è vera
-unsigned int anem = 3; //pin su cui abbiamo l interrupt 
+#define anemPin = 3; //pin su cui abbiamo l interrupt 
 
 // TERMOMETRO & IGROMETRO
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 bool term_control = true;
 float tempAverage = 0;
 float humAverage = 0;
-int tempCount = 0; 
-int humCount = 0;
+unsigned int tempCount = 0; 
+unsigned int humCount = 0;
 
 //PRESSIONE
 float pressAverage = 0;
-int pressCount = 0;
+unsigned int pressCount = 0;
 
-//TEMPORIZZAZIONI 
-float tAverage0 = millis();
+//TEMPORIZZAZIONI
+unsigned int tAverage0 = millis();
 
 // INTERRUPT ____________________________________________________________________________________________
 void anemometer()
 {
-    n++;
+    nPulseWind++;
     if (control)
     {
         t1 = millis() / 1000;
@@ -127,7 +126,7 @@ void initBarometro()
 
 void initWindSpeed()
 {
-	attachInterrupt(digitalPinToInterrupt(anem), anemometer, HIGH);
+	attachInterrupt(digitalPinToInterrupt(anemPin), anemometer, HIGH);
 }
 
 void initGSM()
@@ -265,13 +264,13 @@ void updateSerial()
 
 void send_mess(const char s)
 {
-    mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
-    updateSerial();
-    mySerial.println("AT+CMGS=\"+393890954340\""); // change ZZ with country code and xxxxxxxxxxx with phone number to sms
-    updateSerial();
-    mySerial.print(s); // text content
-    updateSerial();
-    mySerial.write(26); //è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
+	mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
+	updateSerial();
+	mySerial.println("AT+CMGS=\"+393890954340\""); // change ZZ with country code and xxxxxxxxxxx with phone number to sms
+	updateSerial();
+	mySerial.print(s); // text content
+	updateSerial();
+	mySerial.write(26); //è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
 }
 
 void resetAverage()
@@ -287,11 +286,11 @@ void resetAverage()
 //__________________________________________________________________________________________________________________________________
 void setup()
 {
-    Serial.begin(9600);
-    mySerial.begin(9600);
+	Serial.begin(9600);
+	mySerial.begin(9600);
 
 	//initRTC; //scommentare solo per impostare l'ora.
-    initTemp();
+	initTemp();
 	initBarometro();
 	initWindSpeed();
 	initGSM();
@@ -321,5 +320,5 @@ void loop()
 		resetAverage;
 	}
 
-    delay(1000);
+	delay(1000);
 }
