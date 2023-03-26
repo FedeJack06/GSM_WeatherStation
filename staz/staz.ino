@@ -5,29 +5,28 @@
 #include <SoftwareSerial.h>
 
 // GSM
-SoftwareSerial mySerial(3, 2);
+SoftwareSerial sim800(3, 2);
 
 // RTC
 RTC_DS1307 rtc;
-
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 bool rtc_control = true;
 
 // BAROMETRO
 Adafruit_BMP085 bmp;
-
 #define seaLevelPressure_hPa 1013.25 // NB DA TARARE CON MISURAZIONI DI ALTRE STAZIONI VICINE NORMALIZZATE SLM
 bool bar_control = true;
 
-// VELOCITA VENTO: presuppone anemometro con contatto reed cioe ogni giro un contato, con un interrupt
-conto ogni contatto sapendo che un contatto al secondo sono due virgola quattro metri al secondo unsigned long t1 = 0;
+// VELOCITA VENTO: presuppone anemometro con contatto reed cioe ogni giro un contato, con un interruptconto ogni contatto sapendo che un contatto al secondo sono due virgola quattro metri al secondo 
+unsigned long t1 = 0;
 unsigned long t2 = 0;
 float vel = 0;
+int n = 0;
 unsigned int nPulseWind = 0; // numero di conteggi, variabile incrementale
 unsigned int count10 = 0;    // numero di conteggi in 10 secondi
 unsigned int count = 0;      // numero di conteggi al secondo
 bool control = true;         // fa le cose sono quando questa variabile è vera
-#define anemPin = 3;         // pin su cui abbiamo l interrupt
+int anemPin = 3;         // pin su cui abbiamo l interrupt
 
 // TERMOMETRO & IGROMETRO
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
@@ -43,6 +42,7 @@ unsigned int tempCountDay = 0;
 unsigned int humCountDay = 0;
 
 int daySaved = 0;
+float tAverageDay = 0;
 
 // PRESSIONE
 float pressAverage = 0;
@@ -98,14 +98,15 @@ void data_ora()
 
 void initRTC()
 {
-    /*
+    Serial.println("inizializzo rtc");  
     if (!rtc.begin()) { //la rtc ha range di lavoro 0-70 gradi, quindi nel casi si andasse sotto zero pesantemnte (inverno) come si fa?
       send_mess("Couldn't find RTC");
+      Serial.println("Couldn't find RTC");
     }
-    */
     if (!rtc.isrunning())
     {
         send_mess("RTC is NOT running!");
+        Serial.println("RTC is NOT running!");
         // following line sets the RTC to the date & time this sketch was compiled
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
         // This line sets the RTC with an explicit date & time, for example to set
@@ -117,18 +118,22 @@ void initRTC()
 
 void initTemp()
 {
+    Serial.println("inizializzo termometro"); 
     if (!sht31.begin(0x44))
     { // Set to 0x45 for alternate I2C address
         send_mess("il termometro non va puttana eva");
+        Serial.println("il termometro non va puttana eva");
         term_control = false;
     }
 }
 
 void initBarometro()
 {
+    Serial.println("inizializzo barometro"); 
     if (!bmp.begin())
     {
         send_mess("Could not find a valid BMP085 sensor, check wiring!");
+        Serial.println("Could not find a valid BMP085 sensor, check wiring!");
         bar_control = false;
     }
 }
@@ -138,31 +143,33 @@ void initWindSpeed()
     attachInterrupt(digitalPinToInterrupt(anemPin), anemometer, HIGH);
 }
 
+/*
 void initGSM()
 {
     // GSM questi controlli sono tutti sbagliato, non capisco che cazzo ritorna il gsm
-    mySerial.println("AT"); // Once the handshake test is successful, it will back to OK
-    if (mySerial.read() != "OK")
+    sim800.println("AT"); // Once the handshake test is successful, it will back to OK
+    if (sim800.read() != "OK")
     {
         Serial.print("puttana eva non funzia");
     }
-    mySerial.println("AT+CSQ"); // Signal quality test, value range is 0-31 , 31 is the best
-    if (mySerial.read() < 5)
+    sim800.println("AT+CSQ"); // Signal quality test, value range is 0-31 , 31 is the best
+    if (sim800.read() < 5)
     {
         Serial.print("puttana eva il segnale è basso");
     }
-    mySerial.println("AT+CCID"); // Read SIM information to confirm whether the SIM is plugged
-    /*
-    if(mySerial.read() != "OK"){               NON SO COME CAZZO CONTROLLARE SE FUNZIONA
-        Serial.print("puttana eva");
-    }
-    */
-    mySerial.println("AT+CREG?"); // Check whether it has registered in the network
-    if ((mySerial.read() != 1) || (mySerial.read() != 5))
+    sim800.println("AT+CCID"); // Read SIM information to confirm whether the SIM is plugged
+    
+    //if(sim800.read() != "OK"){               NON SO COME CAZZO CONTROLLARE SE FUNZIONA
+        //Serial.print("puttana eva");
+    //}
+    
+    sim800.println("AT+CREG?"); // Check whether it has registered in the network
+    if ((sim800.read() != 1) || (sim800.read() != 5))
     {
         Serial.print("puttana eva a che cazzo è collegato");
     }
 }
+*/
 
 // FUNZIONI IN LOOP__________________________________________________________________________________________________________________
 void readTempHum()
@@ -230,7 +237,7 @@ void readPressure()
         }
         else
         {
-            Serial.Print("Unable to read pressure");
+            Serial.print("Unable to read pressure");
         }
     }
 }
@@ -247,8 +254,8 @@ void readWindSpeed()
         control = true;
     }
 
-    count = count10 / (t2 - t1) // numero di volte in cui si chiude lo switch in un secondo
-            vel = 2.4 * count;
+    count = count10 / (t2 - t1); // numero di volte in cui si chiude lo switch in un secondo
+    vel = 2.4 * count;
 
     Serial.print("Velocita: ");
     Serial.print(vel);
@@ -268,23 +275,23 @@ void updateSerial()
     delay(500);
     while (Serial.available()) // CREDO CHE QUESTO NON SERVA A NIENTE
     {
-        mySerial.write(Serial.read()); // Forward what Serial received to Software Serial Port
+        sim800.write(Serial.read()); // Forward what Serial received to Software Serial Port
     }
-    while (mySerial.available())
+    while (sim800.available())
     {
-        Serial.write(mySerial.read()); // Forward what Software Serial received to Serial Port
+        Serial.write(sim800.read()); // Forward what Software Serial received to Serial Port
     }
 }
 
 void send_mess(const char s)
 {
-    mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
+    sim800.println("AT+CMGF=1"); //Configuring TEXT mode
     updateSerial();
-    mySerial.println("AT+CMGS=\"+393890954340\""); // change ZZ with country code and xxxxxxxxxxx with phone number to sms
+    sim800.println("AT+CMGS=\"+393890954340\""); // change ZZ with country code and xxxxxxxxxxx with phone number to sms
     updateSerial();
-    mySerial.print(s); // text content
+    sim800.print(s); // text content
     updateSerial();
-    mySerial.write(26); // è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
+    sim800.write(26); // è l equivalente di Ctrl+Z ogni cosa terminata da ctrl z è trattato come un messaggio
 }
 
 void resetAverage(int avg)
@@ -331,7 +338,7 @@ void send_data(float windSpeed, float temp, float hum, float press, float dayAvg
     resp("OK");
 
     // CHIMATA HTTP, nel link dovranno esserci tutte le variabili in ingresso
-    sim800.println("AT+HTTPPARA=\"URL\",\"http://www.zeppelinmaker.it/service.php?sens=" + String(v) + "\"");
+    sim800.println("AT+HTTPPARA=\"URL\",\"http://www.zeppelinmaker.it/service.php?sens=" + String(temp) + "\"");
     resp("OK");
     sim800.println("AT+HTTPACTION=0"); // call
     resp("OK");
@@ -342,7 +349,7 @@ void send_data(float windSpeed, float temp, float hum, float press, float dayAvg
 
 int resp(String txt)
 { // PAOLO ALIVERTI MA CHE CAZZO FAI
-    int n = 0;
+    n = 0;
     String ret = "";
     bool LOOP = true;
     while (LOOP)
@@ -385,12 +392,13 @@ int resp(String txt)
     delay(1000);
     return n;
 }
-
+//__________________________________________________________________________________________________________________________________
+//__________________________________________________________________________________________________________________________________
 //__________________________________________________________________________________________________________________________________
 void setup()
 {
     Serial.begin(9600);
-    mySerial.begin(9600);
+    sim800.begin(9600);
 
     DateTime now = rtc.now();
     daySaved = now.day();
@@ -400,15 +408,17 @@ void setup()
     initTemp();
     initBarometro();
     initWindSpeed();
-    initGSM();
+    //initGSM();
 }
-
+//__________________________________________________________________________________________________________________________________
+//__________________________________________________________________________________________________________________________________
+//__________________________________________________________________________________________________________________________________
 void loop()
 {
-    readTempHum;
-    readPressure;
-    readWindSpeed;
-
+    readTempHum();
+    readPressure();
+    readWindSpeed();
+    Serial.print("\n");
     // media in 1000 millisecondi
     if ((millis() - tAverage0) >= 1000)
     {
@@ -422,10 +432,10 @@ void loop()
         Serial.print("\t");
         Serial.print((tempAverage / tempCount), 6);
         Serial.print("\t");
-        // Serial.print((humAverage / humCount), 6);
-        // Serial.print("\t");
-        // Serial.println((pressAverage / pressCount),6);
-        Serial.print("\n");
+        //Serial.print((humAverage / humCount), 6);
+        //Serial.print("\t");
+        //Serial.println((pressAverage / pressCount),6);
+        Serial.print("\n");   
         resetAverage(1);
     }
 
@@ -444,12 +454,12 @@ void loop()
         Serial.print("\t");
         Serial.print((tempAverageDay / tempCountDay), 6);
         Serial.print("\t");
-        // Serial.print((humAverageDay / humCountDay), 6);
-        // Serial.print("\t");
-        // Serial.println((pressAverageDay / pressCountDay),6);
+        //Serial.print((humAverageDay / humCountDay), 6);
+        //Serial.print("\t");
+        //Serial.println((pressAverageDay / pressCountDay),6);
         Serial.print("\n");
         resetAverage(2);
     }
 
-    delay(1000);
+    delay(500);
 }
